@@ -60,22 +60,30 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 
     // Build HTTP response and store it in response
     // store length of the header AND body
-    int response_length = sprintf(response, "%s\n"
-                                            "Date: %s\n"
-                                            "Connection: close\n"
-                                            "Content-Length: %d\n"
-                                            "Content-Type: %s\n\n"
-                                            "%s\n",
-                                  header, asctime(info), content_length, content_type, body);
+    int response_length =
+        sprintf(response, "%s\n"
+                          "Date: %s\n"
+                          "Connection: close\n"
+                          "Content-Length: %d\n"
+                          "Content-Type: %s\n\n",
+                header, asctime(info), content_length, content_type);
+    // one method: attach the body manually
+    memcpy(response + response_length, body, content_length);
+    response_length += content_length;
 
-    // Send it all!
+    // Send header
     int rv = send(fd, response, response_length, 0);
 
     if (rv < 0)
     {
         perror("send");
     }
-
+    // // send body separately
+    // rv = send(fd, body, content_length, 0);
+    // if (rv < 0)
+    // {
+    //     perror("send");
+    // }
     return rv;
 }
 
@@ -126,12 +134,26 @@ void resp_404(int fd)
  */
 void get_file(int fd, struct cache *cache, char *request_path)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
-    (void)fd;
+    char filepath[4096];
+    struct file_data *filedata;
+    char *mime_type;
     (void)cache;
-    (void)request_path;
+    // see if file exists
+    snprintf(filepath, sizeof filepath, "%s/%s", SERVER_ROOT, request_path);
+    filedata = file_load(filepath);
+
+    // if we find file, send it
+    if (filedata != NULL)
+    {
+        mime_type = mime_type_get(filepath);
+        send_response(fd, "HTTP/1.1 200 OK", mime_type, filedata->data, filedata->size);
+    }
+    // else send 404
+    else
+    {
+        fprintf(stderr, "file not found! requested: %s", filepath);
+        resp_404(fd);
+    }
 }
 
 /**
@@ -184,7 +206,8 @@ void handle_http_request(int fd, struct cache *cache)
         else
         {
             // Otherwise serve the requested file by calling get_file()
-            printf("Path requested: %s\n", path);
+            // will also send response
+            get_file(fd, cache, path);
         }
     }
     else
