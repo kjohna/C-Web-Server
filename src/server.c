@@ -85,16 +85,13 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 void get_d20(int fd)
 {
     // Generate a random number between 1 and 20 inclusive
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    int num = random() % 20 + 1;
+    char num_char[1024];
+    // get length of content
+    int content_length = sprintf(num_char, "%d", num);
 
     // Use send_response() to send it back as text/plain data
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    send_response(fd, "HTTP/1.1 200 OK", "text/plain", num_char, content_length);
 }
 
 /**
@@ -132,6 +129,9 @@ void get_file(int fd, struct cache *cache, char *request_path)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    (void)fd;
+    (void)cache;
+    (void)request_path;
 }
 
 /**
@@ -145,6 +145,8 @@ char *find_start_of_body(char *header)
     ///////////////////
     // IMPLEMENT ME! // (Stretch)
     ///////////////////
+    (void)header;
+    return NULL;
 }
 
 /**
@@ -154,6 +156,7 @@ void handle_http_request(int fd, struct cache *cache)
 {
     const int request_buffer_size = 65536; // 64K
     char request[request_buffer_size];
+    (void)cache;
 
     // Read request
     int bytes_recvd = recv(fd, request, request_buffer_size - 1, 0);
@@ -175,7 +178,8 @@ void handle_http_request(int fd, struct cache *cache)
         //    Check if it's /d20 and handle that special case
         if (!strcmp("/d20", path))
         {
-            printf("Path requested: %s\n", path);
+            // will also send response
+            get_d20(fd);
         }
         else
         {
