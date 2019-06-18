@@ -183,7 +183,7 @@ void handle_http_request(int fd, struct cache *cache)
         }
         else
         {
-            //    Otherwise serve the requested file by calling get_file()
+            // Otherwise serve the requested file by calling get_file()
             printf("Path requested: %s\n", path);
         }
     }
@@ -207,6 +207,9 @@ int main(void)
 
     // Get a listening socket
     int listenfd = get_listener_socket(PORT);
+
+    // create better randomness for get_d20
+    srand(time(NULL));
 
     if (listenfd < 0)
     {
