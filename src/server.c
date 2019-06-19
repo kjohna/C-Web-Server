@@ -60,22 +60,30 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 
     // Build HTTP response and store it in response
     // store length of the header AND body
-    int response_length = sprintf(response, "%s\n"
-                                            "Date: %s\n"
-                                            "Connection: close\n"
-                                            "Content-Length: %d\n"
-                                            "Content-Type: %s\n\n"
-                                            "%s\n",
-                                  header, asctime(info), content_length, content_type, body);
+    int response_length =
+        sprintf(response, "%s\n"
+                          "Date: %s\n"
+                          "Connection: close\n"
+                          "Content-Length: %d\n"
+                          "Content-Type: %s\n\n",
+                header, asctime(info), content_length, content_type);
+    // one method: attach the body manually
+    memcpy(response + response_length, body, content_length);
+    response_length += content_length;
 
-    // Send it all!
+    // Send header
     int rv = send(fd, response, response_length, 0);
 
     if (rv < 0)
     {
         perror("send");
     }
-
+    // // send body separately
+    // rv = send(fd, body, content_length, 0);
+    // if (rv < 0)
+    // {
+    //     perror("send");
+    // }
     return rv;
 }
 
@@ -85,16 +93,13 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 void get_d20(int fd)
 {
     // Generate a random number between 1 and 20 inclusive
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    int num = random() % 20 + 1;
+    char num_char[1024];
+    // get length of content
+    int content_length = sprintf(num_char, "%d", num);
 
     // Use send_response() to send it back as text/plain data
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    send_response(fd, "HTTP/1.1 200 OK", "text/plain", num_char, content_length);
 }
 
 /**
@@ -129,9 +134,26 @@ void resp_404(int fd)
  */
 void get_file(int fd, struct cache *cache, char *request_path)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    char filepath[4096];
+    struct file_data *filedata;
+    char *mime_type;
+    (void)cache;
+    // see if file exists
+    snprintf(filepath, sizeof filepath, "%s/%s", SERVER_ROOT, request_path);
+    filedata = file_load(filepath);
+
+    // if we find file, send it
+    if (filedata != NULL)
+    {
+        mime_type = mime_type_get(filepath);
+        send_response(fd, "HTTP/1.1 200 OK", mime_type, filedata->data, filedata->size);
+    }
+    // else send 404
+    else
+    {
+        fprintf(stderr, "file not found! requested: %s", filepath);
+        resp_404(fd);
+    }
 }
 
 /**
@@ -145,6 +167,8 @@ char *find_start_of_body(char *header)
     ///////////////////
     // IMPLEMENT ME! // (Stretch)
     ///////////////////
+    (void)header;
+    return NULL;
 }
 
 /**
@@ -154,6 +178,7 @@ void handle_http_request(int fd, struct cache *cache)
 {
     const int request_buffer_size = 65536; // 64K
     char request[request_buffer_size];
+    (void)cache;
 
     // Read request
     int bytes_recvd = recv(fd, request, request_buffer_size - 1, 0);
@@ -175,12 +200,14 @@ void handle_http_request(int fd, struct cache *cache)
         //    Check if it's /d20 and handle that special case
         if (!strcmp("/d20", path))
         {
-            printf("Path requested: %s\n", path);
+            // will also send response
+            get_d20(fd);
         }
         else
         {
-            //    Otherwise serve the requested file by calling get_file()
-            printf("Path requested: %s\n", path);
+            // Otherwise serve the requested file by calling get_file()
+            // will also send response
+            get_file(fd, cache, path);
         }
     }
     else
@@ -203,6 +230,9 @@ int main(void)
 
     // Get a listening socket
     int listenfd = get_listener_socket(PORT);
+
+    // create better randomness for get_d20
+    srand(time(NULL));
 
     if (listenfd < 0)
     {
@@ -237,9 +267,6 @@ int main(void)
 
         // newfd is a new socket descriptor for the new connection.
         // listenfd is still listening for new connections.
-
-        // test send_response
-        resp_404(newfd);
 
         handle_http_request(newfd, cache);
 
