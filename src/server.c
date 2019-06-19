@@ -71,6 +71,7 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     // memcpy(response + response_length, body, content_length);
     // response_length += content_length;
 
+    // other method: send 2 responses, header and body separately
     // Send header
     printf("Content_length: %d\n", content_length);
     int rv = send(fd, response, response_length, 0);
