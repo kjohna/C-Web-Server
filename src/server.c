@@ -62,11 +62,11 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     // store length of the header AND body
     int response_length =
         sprintf(response, "%s\n"
-                          //   "Date: %s\n"  , asctime(info)
+                          "Date: %s" // asctime() adds \n
                           "Content-Type: %s\n"
                           "Content-Length: %d\n"
                           "Connection: close\n\n",
-                header, content_type, content_length);
+                header, asctime(info), content_type, content_length);
     // // one method: attach the body manually
     // memcpy(response + response_length, body, content_length);
     // response_length += content_length;
