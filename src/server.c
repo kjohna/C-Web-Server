@@ -168,11 +168,18 @@ void get_file(int fd, struct cache *cache, char *request_path)
  */
 char *find_start_of_body(char *header)
 {
-    ///////////////////
-    // IMPLEMENT ME! // (Stretch)
-    ///////////////////
-    (void)header;
-    return NULL;
+    char *body = header;
+    char word[1024];
+    int count = 0, offset = 0;
+
+    // read each word of the header until a \n or \r is found
+    // move body pointer for each item
+    while (sscanf(body, "%s\n%n", word, &offset) == 1)
+    {
+        body += offset;
+        printf("read line: %s offset: %d remaining: %s\n", word, offset, body);
+    }
+    return body;
 }
 
 /**
@@ -213,10 +220,15 @@ void handle_http_request(int fd, struct cache *cache)
             get_file(fd, cache, path);
         }
     }
-    else
+    else if (!strcmp("POST", req_type))
     {
         // (Stretch) If POST, handle the post request
-        printf("Only GET requests are supported.\n");
+        char *body = find_start_of_body(request);
+        printf("body:\n%s\n", body);
+    }
+    else
+    {
+        printf("Only GET & POST requests are supported.\n");
     }
 }
 
