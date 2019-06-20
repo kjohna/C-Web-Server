@@ -62,28 +62,32 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     // store length of the header AND body
     int response_length =
         sprintf(response, "%s\n"
-                          "Date: %s\n"
-                          "Connection: close\n"
+                          "Date: %s" // asctime() adds \n
+                          "Content-Type: %s\n"
                           "Content-Length: %d\n"
-                          "Content-Type: %s\n\n",
-                header, asctime(info), content_length, content_type);
-    // one method: attach the body manually
-    memcpy(response + response_length, body, content_length);
-    response_length += content_length;
+                          "Connection: close\n\n",
+                header, asctime(info), content_type, content_length);
+    // // one method: attach the body manually
+    // memcpy(response + response_length, body, content_length);
+    // response_length += content_length;
 
+    // other method: send 2 responses, header and body separately
     // Send header
+    printf("Content_length: %d\n", content_length);
     int rv = send(fd, response, response_length, 0);
 
     if (rv < 0)
     {
         perror("send");
     }
-    // // send body separately
-    // rv = send(fd, body, content_length, 0);
-    // if (rv < 0)
-    // {
-    //     perror("send");
-    // }
+    // send body separately
+    printf("Content_length: %d\n", content_length);
+    rv = send(fd, body, content_length, 0);
+    printf("sent\n");
+    if (rv < 0)
+    {
+        perror("send");
+    }
     return rv;
 }
 
@@ -178,7 +182,6 @@ void handle_http_request(int fd, struct cache *cache)
 {
     const int request_buffer_size = 65536; // 64K
     char request[request_buffer_size];
-    (void)cache;
 
     // Read request
     int bytes_recvd = recv(fd, request, request_buffer_size - 1, 0);
