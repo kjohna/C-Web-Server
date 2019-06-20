@@ -33,6 +33,7 @@
 #include "file.h"
 #include "mime.h"
 #include "cache.h"
+#include <sys/stat.h>
 
 #define PORT "3490" // the port users will be connecting to
 
@@ -73,7 +74,7 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 
     // other method: send 2 responses, header and body separately
     // Send header
-    printf("Content_length: %d\n", content_length);
+    // printf("Content_length: %d\n", content_length);
     int rv = send(fd, response, response_length, 0);
 
     if (rv < 0)
@@ -81,9 +82,9 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
         perror("send");
     }
     // send body separately
-    printf("Content_length: %d\n", content_length);
+    // printf("Content_length: %d\n", content_length);
     rv = send(fd, body, content_length, 0);
-    printf("sent\n");
+    // printf("sent\n");
     if (rv < 0)
     {
         perror("send");
@@ -227,15 +228,28 @@ int get_content_length(char *request)
 /**
  * Save data from a POST request
  */
-void post_save(char *body, int length)
+void post_save(int fd, char *body, int length)
 {
     // save data from body to the disk
     // files saved to SERVER_ROOT
-    FILE *fp = fopen("POST.txt", 'w');
-
-    // if successfull send response:
-    // type: `application/json` body: `{"status":"ok"}`
-    // int send_response(int fd, char *header, char *content_type, void *body, int content_length)
+    // note: watch out for permissions on POST.txt, not set here
+    int fd_lcl = open(SERVER_ROOT "/POST.txt", O_WRONLY | O_APPEND | O_CREAT);
+    int status = write(fd_lcl, body, length);
+    // printf("write status: %d\n", status);
+    // printf("%d\n%s\n", length, body);
+    if (status == length)
+    {
+        // if successfull send response:
+        // type: `application/json` body: `{"status":"ok"}`
+        char *type = "application/json";
+        char *body = "{\"status\":\"ok\"}";
+        write(fd_lcl, "\n", 1);
+        close(fd_lcl);
+        send_response(fd, "HTTP/1.1 200 OK", type, body, strlen(body));
+        return;
+    }
+    printf("fail\n");
+    close(fd_lcl);
 }
 
 /**
@@ -259,7 +273,7 @@ void handle_http_request(int fd, struct cache *cache)
     char req_type[4], path[1024], protocol[512];
     sscanf(request, "%s %s %s", req_type, path, protocol);
     // printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
-    printf("handle_http_request: \n%s\n", request);
+    // printf("handle_http_request: \n%s\n", request);
     // If GET, handle the get endpoints
     if (!strcmp("GET", req_type))
     {
@@ -287,7 +301,7 @@ void handle_http_request(int fd, struct cache *cache)
         int content_length = get_content_length(request);
         // write body to disk
         // note: sends response
-        post_save(*body, content_length);
+        post_save(fd, body, content_length);
     }
     else
     {
