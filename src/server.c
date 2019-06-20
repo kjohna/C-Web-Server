@@ -205,6 +205,39 @@ char *find_start_of_body(char *header)
     return body;
 }
 
+int get_content_length(char *request)
+{
+    char *request_pos = request;
+    char key[512];
+    int offset, content_length;
+    offset = content_length = 0;
+    while (sscanf(request_pos, "%s%n", key, &offset) == 1)
+    {
+        request_pos += offset;
+        if (!strcmp(key, "content-length:"))
+        {
+            sscanf(request_pos, "%d", &content_length);
+            // printf("content-length: %d\n", content_length);
+            break;
+        }
+    }
+    return content_length;
+}
+
+/**
+ * Save data from a POST request
+ */
+void post_save(char *body, int length)
+{
+    // save data from body to the disk
+    // files saved to SERVER_ROOT
+    FILE *fp = fopen("POST.txt", 'w');
+
+    // if successfull send response:
+    // type: `application/json` body: `{"status":"ok"}`
+    // int send_response(int fd, char *header, char *content_type, void *body, int content_length)
+}
+
 /**
  * Handle HTTP request and send response
  */
@@ -226,7 +259,7 @@ void handle_http_request(int fd, struct cache *cache)
     char req_type[4], path[1024], protocol[512];
     sscanf(request, "%s %s %s", req_type, path, protocol);
     // printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
-    // printf("handle_http_request: \n%s\n", request);
+    printf("handle_http_request: \n%s\n", request);
     // If GET, handle the get endpoints
     if (!strcmp("GET", req_type))
     {
@@ -248,8 +281,13 @@ void handle_http_request(int fd, struct cache *cache)
     {
         // (Stretch) If POST, handle the post request
         printf("POST request!\n");
+        // find start of body
         char *body = find_start_of_body(request);
-        printf("body:\n%s\n", body);
+        // get length of body
+        int content_length = get_content_length(request);
+        // write body to disk
+        // note: sends response
+        post_save(*body, content_length);
     }
     else
     {
