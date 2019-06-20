@@ -33,6 +33,7 @@
 #include "file.h"
 #include "mime.h"
 #include "cache.h"
+#include <sys/stat.h>
 
 #define PORT "3490" // the port users will be connecting to
 
@@ -73,7 +74,7 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 
     // other method: send 2 responses, header and body separately
     // Send header
-    printf("Content_length: %d\n", content_length);
+    // printf("Content_length: %d\n", content_length);
     int rv = send(fd, response, response_length, 0);
 
     if (rv < 0)
@@ -81,9 +82,9 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
         perror("send");
     }
     // send body separately
-    printf("Content_length: %d\n", content_length);
+    // printf("Content_length: %d\n", content_length);
     rv = send(fd, body, content_length, 0);
-    printf("sent\n");
+    // printf("sent\n");
     if (rv < 0)
     {
         perror("send");
@@ -168,11 +169,87 @@ void get_file(int fd, struct cache *cache, char *request_path)
  */
 char *find_start_of_body(char *header)
 {
-    ///////////////////
-    // IMPLEMENT ME! // (Stretch)
-    ///////////////////
-    (void)header;
-    return NULL;
+    char *body = header;
+    char word[1024];
+    int offset = 0;
+
+    // read each word of the header until a \n or \r is found by itself
+    // https://stackoverflow.com/questions/5757290/http-header-line-break-style
+    // move body pointer for each item
+    while (sscanf(body, "%s%n\n", word, &offset) == 1)
+    {
+        body += offset;
+        if (*body == '\r')
+        {
+            // printf("CR NEWLINE\n\n");
+            body += 2;
+            if (*body == '\r')
+            {
+                // printf("CR END OF HEADER\n\n");
+                body += 2;
+                break;
+            }
+        }
+        if (*body == '\n')
+        {
+            // printf("LF NEWLINE\n\n");
+            body++;
+            if (*body == '\n')
+            {
+                // printf("LF END OF HEADER\n\n");
+                body++;
+                break;
+            }
+        }
+        // printf("read line: %s offset: %d remaining: %s\n", word, offset, body);
+    }
+    return body;
+}
+
+int get_content_length(char *request)
+{
+    char *request_pos = request;
+    char key[512];
+    int offset, content_length;
+    offset = content_length = 0;
+    while (sscanf(request_pos, "%s%n", key, &offset) == 1)
+    {
+        request_pos += offset;
+        if (!strcmp(key, "content-length:"))
+        {
+            sscanf(request_pos, "%d", &content_length);
+            // printf("content-length: %d\n", content_length);
+            break;
+        }
+    }
+    return content_length;
+}
+
+/**
+ * Save data from a POST request
+ */
+void post_save(int fd, char *body, int length)
+{
+    // save data from body to the disk
+    // files saved to SERVER_ROOT
+    // note: watch out for permissions on POST.txt, not set here
+    int fd_lcl = open(SERVER_ROOT "/POST.txt", O_WRONLY | O_APPEND | O_CREAT);
+    int status = write(fd_lcl, body, length);
+    // printf("write status: %d\n", status);
+    // printf("%d\n%s\n", length, body);
+    if (status == length)
+    {
+        // if successfull send response:
+        // type: `application/json` body: `{"status":"ok"}`
+        char *type = "application/json";
+        char *body = "{\"status\":\"ok\"}";
+        write(fd_lcl, "\n", 1);
+        close(fd_lcl);
+        send_response(fd, "HTTP/1.1 200 OK", type, body, strlen(body));
+        return;
+    }
+    printf("fail\n");
+    close(fd_lcl);
 }
 
 /**
@@ -195,7 +272,8 @@ void handle_http_request(int fd, struct cache *cache)
     // Read the first two components of the first line of the request
     char req_type[4], path[1024], protocol[512];
     sscanf(request, "%s %s %s", req_type, path, protocol);
-    printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
+    // printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
+    // printf("handle_http_request: \n%s\n", request);
     // If GET, handle the get endpoints
     if (!strcmp("GET", req_type))
     {
@@ -213,10 +291,21 @@ void handle_http_request(int fd, struct cache *cache)
             get_file(fd, cache, path);
         }
     }
-    else
+    else if (!strcmp("POST", req_type))
     {
         // (Stretch) If POST, handle the post request
-        printf("Only GET requests are supported.\n");
+        printf("POST request!\n");
+        // find start of body
+        char *body = find_start_of_body(request);
+        // get length of body
+        int content_length = get_content_length(request);
+        // write body to disk
+        // note: sends response
+        post_save(fd, body, content_length);
+    }
+    else
+    {
+        printf("Only GET & POST requests are supported.\n");
     }
 }
 
