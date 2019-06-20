@@ -170,14 +170,37 @@ char *find_start_of_body(char *header)
 {
     char *body = header;
     char word[1024];
-    int count = 0, offset = 0;
+    int offset = 0;
 
-    // read each word of the header until a \n or \r is found
+    // read each word of the header until a \n or \r is found by itself
+    // https://stackoverflow.com/questions/5757290/http-header-line-break-style
     // move body pointer for each item
-    while (sscanf(body, "%s\n%n", word, &offset) == 1)
+    while (sscanf(body, "%s%n\n", word, &offset) == 1)
     {
         body += offset;
-        printf("read line: %s offset: %d remaining: %s\n", word, offset, body);
+        if (*body == '\r')
+        {
+            // printf("CR NEWLINE\n\n");
+            body += 2;
+            if (*body == '\r')
+            {
+                // printf("CR END OF HEADER\n\n");
+                body += 2;
+                break;
+            }
+        }
+        if (*body == '\n')
+        {
+            // printf("LF NEWLINE\n\n");
+            body++;
+            if (*body == '\n')
+            {
+                // printf("LF END OF HEADER\n\n");
+                body++;
+                break;
+            }
+        }
+        // printf("read line: %s offset: %d remaining: %s\n", word, offset, body);
     }
     return body;
 }
@@ -202,7 +225,8 @@ void handle_http_request(int fd, struct cache *cache)
     // Read the first two components of the first line of the request
     char req_type[4], path[1024], protocol[512];
     sscanf(request, "%s %s %s", req_type, path, protocol);
-    printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
+    // printf("handle_http_request: \n%s\n%s\n%s\n", req_type, path, protocol);
+    // printf("handle_http_request: \n%s\n", request);
     // If GET, handle the get endpoints
     if (!strcmp("GET", req_type))
     {
@@ -223,6 +247,7 @@ void handle_http_request(int fd, struct cache *cache)
     else if (!strcmp("POST", req_type))
     {
         // (Stretch) If POST, handle the post request
+        printf("POST request!\n");
         char *body = find_start_of_body(request);
         printf("body:\n%s\n", body);
     }
